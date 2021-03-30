@@ -146,3 +146,4 @@ If you manually built and deployed the app with SAM CLI and CloudFormation, you'
 Open the app in your browser and play with CTR Streams in Amazon Connect!<br>
 Also, if you are interested, modify the frontend app to customize CTR Streams experience as you like, which leads to your better understanding on the concept. 
 
+![CTRViewer_2](docs/CTRViewer_2.png)
