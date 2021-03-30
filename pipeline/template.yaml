@@ -1,0 +1,439 @@
+Description: Create a CodePipeline pipeline to buuld and deploy Contact Trace Record viewer
+
+Parameters:
+  CodeCommitRepository:
+    Type: String
+    Description: Name of the CodeCommit repository that contains the application
+  BranchName:
+    Type: String
+    Description: Name of the branch in CodeCommit repository
+  ArtifactStoreS3Location:
+    Type: String
+    Description: Name of the S3 bucket to store CodePipeline artificat
+
+Resources:
+  CodePipelineRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName:
+        Fn::Sub: CodePipelineRole-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "codepipeline.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      Policies:
+        -
+          PolicyName: "CTRViewerCodePipelinePolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action:
+                  - "s3:DeleteObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:ListBucket"
+                  - "s3:PutObject"
+                  - "s3:GetBucketPolicy"
+                Resource:
+                  - Fn::Sub: arn:aws:s3:::${ArtifactStoreS3Location}
+                  - Fn::Sub: arn:aws:s3:::${ArtifactStoreS3Location}/*
+              -
+                Effect: "Allow"
+                Action:
+                  - "codecommit:ListBranches"
+                  - "codecommit:ListRepositories"
+                  - "codecommit:BatchGetRepositories"
+                  - "codecommit:Get*"
+                  - "codecommit:GitPull"
+                  - "codecommit:UploadArchive"
+                Resource:
+                  - Fn::Sub: arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${CodeCommitRepository}
+              -
+                Effect: "Allow"
+                Action:
+                  - "cloudformation:*"
+                Resource:
+                  - Fn::Sub: arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/CTRProcessor-${AWS::StackName}*
+                  - Fn::Sub: arn:aws:cloudformation:${AWS::Region}:${AWS::AccountId}:stack/CTRViewerHosting-${AWS::StackName}*
+              -
+                Effect: "Allow"
+                Action:
+                  - "codebuild:StartBuild"
+                  - "codebuild:BatchGetBuilds"
+                Resource:
+                  - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/CTRProcessor-${AWS::StackName}
+                  - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/CTRViewerHosting-${AWS::StackName}
+                  - Fn::Sub: arn:aws:codebuild:${AWS::Region}:${AWS::AccountId}:project/CTRViewer-${AWS::StackName}
+              -
+                Effect: "Allow"
+                Action:
+                  - "iam:PassRole"
+                Resource:
+                  - Fn::Sub: arn:aws:iam::${AWS::AccountId}:role/CloudFormationRole-${AWS::StackName}
+
+  CloudFormationRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName:
+        Fn::Sub: CloudFormationRole-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "cloudformation.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /
+      Policies:
+        -
+          PolicyName: "CloudFormationCTRViewerStackPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action:
+                  - "iam:*"
+                Resource:
+                  - "*"
+              -
+                Effect: "Allow"
+                Action:
+                  - "s3:*"
+                  - "kinesis:*"
+                  - "apigateway:*"
+                  - "lambda:*"
+                  - "cloudfront:*"
+                  - "dynamodb:*"
+                  - "cloudformation:*"
+                Resource:
+                  - "*"
+  CodeBuildRole:
+    Type: "AWS::IAM::Role"
+    Properties:
+      RoleName:
+        Fn::Sub: CodeBuildRole-${AWS::StackName}
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          -
+            Effect: "Allow"
+            Principal:
+              Service:
+                - "codebuild.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Path: /service-role/
+      Policies:
+        -
+          PolicyName: "CodeBuildCTRViewerPolicy"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              -
+                Effect: "Allow"
+                Action:
+                  - "cloudformation:*"
+                Resource:
+                  - "*"
+              -
+                Effect: "Allow"
+                Action:
+                  - "codecommit:ListBranches"
+                  - "codecommit:ListRepositories"
+                  - "codecommit:BatchGetRepositories"
+                  - "codecommit:Get*"
+                  - "codecommit:GitPull"
+                Resource:
+                  - Fn::Sub: arn:aws:codecommit:${AWS::Region}:${AWS::AccountId}:${CodeCommitRepository}
+              -
+                Effect: "Allow"
+                Action:
+                  - "s3:PutObject"
+                  - "s3:GetObject"
+                  - "s3:GetObjectVersion"
+                  - "s3:ListBucket"
+                  - "codepipeline:*"
+                  - "logs:*"
+                Resource:
+                  - "*"
+  CTRProcessorBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name:
+        Fn::Sub: CTRProcessor-${AWS::StackName}
+      Description: Build and deploy CTR Processor 
+      ServiceRole:
+        Fn::GetAtt: [ CodeBuildRole, Arn ]
+      Artifacts:
+        Type: CODEPIPELINE
+        Name: 
+          Fn::Sub: CTRProcessor-${AWS::StackName}
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        EnvironmentVariables:
+          - Name: BUILD_OUTPUT_BUCKET
+            Value:
+              Ref: ArtifactStoreS3Location
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: ctr-processor/buildspec.yml
+        InsecureSsl: false
+      TimeoutInMinutes: 60
+      EncryptionKey:
+        Fn::Sub: arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+
+  CTRViewerHostingBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name:
+        Fn::Sub: CTRViewerHosting-${AWS::StackName}
+      Description: Build and deploy CTR Viewer Hosting environment
+      ServiceRole:
+        Fn::GetAtt: [ CodeBuildRole, Arn ]
+      Artifacts:
+        Type: CODEPIPELINE
+        Name: 
+          Fn::Sub: CTRViewerHosting-${AWS::StackName}
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        EnvironmentVariables:
+          - Name: BUILD_OUTPUT_BUCKET
+            Value:
+              Ref: ArtifactStoreS3Location
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: ctr-viewer/hosting/buildspec.yml
+        InsecureSsl: false
+      TimeoutInMinutes: 60
+      EncryptionKey:
+        Fn::Sub: arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+
+  CTRViewerBuildProject:
+    Type: AWS::CodeBuild::Project
+    Properties:
+      Name:
+        Fn::Sub: CTRViewer-${AWS::StackName}
+      Description: Build and deploy CTR Viewer Hosting environment
+      ServiceRole:
+        Fn::GetAtt: [ CodeBuildRole, Arn ]
+      Artifacts:
+        Type: CODEPIPELINE
+        Name: 
+          Fn::Sub: CTRViewer-${AWS::StackName}
+      Environment:
+        Type: LINUX_CONTAINER
+        ComputeType: BUILD_GENERAL1_SMALL
+        Image: aws/codebuild/amazonlinux2-x86_64-standard:3.0
+        EnvironmentVariables:
+          - Name: BUILD_OUTPUT_BUCKET
+            Value:
+              Ref: ArtifactStoreS3Location
+      Source:
+        Type: CODEPIPELINE
+        BuildSpec: ctr-viewer/buildspec.yml
+        InsecureSsl: false
+      TimeoutInMinutes: 60
+      EncryptionKey:
+        Fn::Sub: arn:aws:kms:${AWS::Region}:${AWS::AccountId}:alias/aws/s3
+      LogsConfig:
+        CloudWatchLogs:
+          Status: ENABLED
+
+  DeployPipeline:
+    Type: "AWS::CodePipeline::Pipeline"
+    Properties:
+      Name:
+        Fn::Sub: CTRApplicationPipeline-${AWS::StackName}
+      RoleArn:
+          Fn::GetAtt: [ CodePipelineRole, Arn ]
+      Stages:
+        -
+          Name: Source
+          Actions:
+            -
+              Name: Source
+              ActionTypeId:
+                Category: Source
+                Owner: AWS
+                Version: 1
+                Provider: CodeCommit
+              OutputArtifacts:
+                -
+                  Name: SourceArtifact
+              Configuration:
+                BranchName: 
+                  Ref: BranchName
+                RepositoryName:
+                  Ref: CodeCommitRepository
+              RunOrder: 1
+        -
+          Name: CTRProcessorAndCTRViewerHostingBuild
+          Actions:
+            -
+              Name: CTRProcessorBuild
+              InputArtifacts:
+                - Name: SourceArtifact
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              OutputArtifacts:
+                -
+                  Name: CTRProcessorBuildArtifact
+              Configuration:
+                ProjectName:
+                  Ref: CTRProcessorBuildProject
+              RunOrder: 1
+
+            -
+              Name: CTRViewerHostingBuild
+              InputArtifacts:
+                - Name: SourceArtifact
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              OutputArtifacts:
+                -
+                  Name: CTRViewerHostingBuildArtifact
+              Configuration:
+                ProjectName:
+                  Ref: CTRViewerHostingBuildProject
+              RunOrder: 1
+        -
+          Name: CTRProcessorAndCTRViewerHostingDeploy
+          Actions:
+            -
+              Name: CTRProcessorCreateChangeSet
+              InputArtifacts:
+                -
+                  Name: CTRProcessorBuildArtifact
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: CloudFormation
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                ChangeSetName: CTRProcessorChangeSet
+                RoleArn:
+                  Fn::GetAtt: [ CloudFormationRole, Arn ]
+                Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+                StackName:
+                  Fn::Sub: CTRProcessor-${AWS::StackName}
+                TemplatePath: CTRProcessorBuildArtifact::packaged.yaml
+              RunOrder: 1
+            -
+              Name: CTRViewerHostingCreateChangeSet
+              InputArtifacts:
+                -
+                  Name: CTRViewerHostingBuildArtifact
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: CloudFormation
+              Configuration:
+                ActionMode: CHANGE_SET_REPLACE
+                ChangeSetName: CTRViewerHostingChangeSet
+                RoleArn:
+                  Fn::GetAtt: [ CloudFormationRole, Arn ]
+                Capabilities: CAPABILITY_IAM,CAPABILITY_NAMED_IAM,CAPABILITY_AUTO_EXPAND
+                StackName:
+                  Fn::Sub: CTRViewerHosting-${AWS::StackName}
+                TemplatePath: CTRViewerHostingBuildArtifact::packaged.yaml
+              RunOrder: 1
+            -
+              Name: CTRProcessorExecuteChangeSet
+              InputArtifacts:
+                -
+                  Name: CTRProcessorBuildArtifact
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: CloudFormation
+              OutputArtifacts:
+                -
+                  Name: CTRProcessorDeployArtifact
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                ChangeSetName: CTRProcessorChangeSet
+                OutputFileName: CTRProcessorOutput.json
+                StackName:
+                  Fn::Sub: CTRProcessor-${AWS::StackName}
+              RunOrder: 2
+            -
+              Name: CTRViewerHostingExecuteChangeSet
+              InputArtifacts:
+                -
+                  Name: CTRViewerHostingBuildArtifact
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Version: 1
+                Provider: CloudFormation
+              OutputArtifacts:
+                -
+                  Name: CTRViewerHostingDeployArtifact
+              Configuration:
+                ActionMode: CHANGE_SET_EXECUTE
+                ChangeSetName: CTRViewerHostingChangeSet
+                OutputFileName: CTRViewerHostingOutput.json
+                StackName:
+                  Fn::Sub: CTRViewerHosting-${AWS::StackName}
+              RunOrder: 2
+        -
+          Name: CTRViewerBuild
+          Actions:
+            -
+              Name: CTRViewerBuild
+              InputArtifacts:
+                -
+                  Name: SourceArtifact
+                - 
+                  Name: CTRProcessorDeployArtifact
+                -
+                  Name: CTRViewerHostingDeployArtifact
+              ActionTypeId:
+                Category: Build
+                Owner: AWS
+                Version: 1
+                Provider: CodeBuild
+              OutputArtifacts:
+                -
+                  Name: CTRViewerBuildArtifact
+              Configuration:
+                PrimarySource: SourceArtifact
+                ProjectName: 
+                  Ref: CTRViewerBuildProject
+              RunOrder: 1
+      ArtifactStore:
+        Type: S3
+        Location:
+          Ref: ArtifactStoreS3Location

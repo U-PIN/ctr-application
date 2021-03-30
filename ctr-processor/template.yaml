@@ -1,0 +1,81 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ctr-processor
+
+  API and backend resources for Agent Event Streams in Amazon Connect
+
+Resources:
+  CTRTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ContactTraceRecordTable-CTRApplication
+      AttributeDefinitions:
+        - AttributeName: ContactId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: ContactId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 20
+        WriteCapacityUnits: 5
+
+  CTRStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      ShardCount: 1
+
+  CTRProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role: !GetAtt LambdaFunctionIamRole.Arn
+      CodeUri: ctr_processor_function/
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Timeout: 300
+      Events:
+        CTREvent:
+          Type: Kinesis
+          Properties:
+            StartingPosition: LATEST
+            Stream: !GetAtt CTRStream.Arn
+
+  CTRAPIFunction:
+    Type: AWS::Serverless::Function 
+    Properties:
+      Role: !GetAtt LambdaFunctionIamRole.Arn
+      CodeUri: ctr_api_function/
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Timeout: 300
+      Events:
+        ListCTR:
+          Type: Api 
+          Properties:
+            Path: /ctr
+            Method: get
+    
+  LambdaFunctionIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - 'lambda.amazonaws.com'
+            Action:
+              - 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/AmazonDynamoDBFullAccess'
+        - 'arn:aws:iam::aws:policy/AmazonKinesisFullAccess'
+
+Outputs:
+  CTRApi:
+    Description: "API Gateway endpoint URL for Prod stage for CTR API function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/ctr"
+  KinesisStream:
+    Description: "Kinesis Data Stream for CTR Streams"
+    Value: !Ref CTRStream
+  

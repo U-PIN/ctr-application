@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'ctr-processor
+
+  API for CTR streams in Amazon Connect
+
+  '
+Resources:
+  CTRTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: ContactTraceRecordTable
+      AttributeDefinitions:
+      - AttributeName: ContactId
+        AttributeType: S
+      - AttributeName: DisconnectTimestamp
+        AttributeType: S
+      KeySchema:
+      - AttributeName: ContactId
+        KeyType: HASH
+      - AttributeName: DisconnectTimestamp
+        KeyType: RANGE
+      ProvisionedThroughput:
+        ReadCapacityUnits: 20
+        WriteCapacityUnits: 5
+  CTRStream:
+    Type: AWS::Kinesis::Stream
+    Properties:
+      ShardCount: 1
+  CTRProcessorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role:
+        Fn::GetAtt:
+        - LambdaFunctionIamRole
+        - Arn
+      CodeUri: CTRProcessorFunction
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Timeout: 300
+      Events:
+        CTREvent:
+          Type: Kinesis
+          Properties:
+            StartingPosition: LATEST
+            Stream:
+              Fn::GetAtt:
+              - CTRStream
+              - Arn
+  CTRAPIFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Role:
+        Fn::GetAtt:
+        - LambdaFunctionIamRole
+        - Arn
+      CodeUri: CTRAPIFunction
+      Handler: app.lambda_handler
+      Runtime: python3.8
+      Timeout: 300
+      Events:
+        ListCTR:
+          Type: Api
+          Properties:
+            Path: /ctr
+            Method: get
+  LambdaFunctionIamRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/AdministratorAccess
+Outputs:
+  CTRApi:
+    Description: API Gateway endpoint URL for Prod stage for CTR API function
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/ctr
+  CTRAPIFunction:
+    Description: CTR API Lambda Function ARN
+    Value:
+      Fn::GetAtt:
+      - CTRAPIFunction
+      - Arn
