@@ -71,6 +71,9 @@ class PageContainer extends React.PureComponent {
     }
 
     async handleClick() {
+        this.setState({
+            isLoading: true
+        });
         this.getContactTraceRecords(this.state.startTime, this.state.endTime);
     }
 
@@ -109,6 +112,7 @@ class PageContainer extends React.PureComponent {
                 />
                 <CTRTable
                     ctrList={this.state.ctrList}
+                    isLoading={this.state.isLoading}
                 />
             </Container>
         )

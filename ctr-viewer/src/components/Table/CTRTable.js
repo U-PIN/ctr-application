@@ -58,14 +58,21 @@ const columnDefinitions = [
     },
 ]
 
-const CTRTable = ({ ctrList }) => {
+const CTRTable = ({ ctrList, isLoading }) => {
     return (
         <div>
             <Table 
                 tableTitle='Contact Trace Records'
                 disableRowSelect={true}
                 columnDefinitions={columnDefinitions}
+                loading={isLoading}
                 items={ctrList}
+                pageSizes={[50, 100, 150]}
+                defaultPageSize={50}
+                sortBy={[{
+                    id: 'InitiationTimestamp',
+                    desc: true
+                }]}
                 getRowId={React.useCallback(data => data.ContactId, [])}
             />
         </div>

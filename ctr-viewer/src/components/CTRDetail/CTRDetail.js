@@ -9,6 +9,7 @@ import Overview from './Overview/Overview';
 import PhoneNumber from './PhoneNumber/PhoneNumber';
 import Queue from './Queue/Queue';
 import Agent from './Agent/Agent';
+import Recordings from './Recordings/Recordings';
 import Attributes from './Attributes/Attributes';
 
 const CTRDetail = ({ ctr }) => {
@@ -43,6 +44,7 @@ const CTRDetail = ({ ctr }) => {
                     <PhoneNumber ctr={ctr} />
                     {ctr.Queue === null ? "" : <Queue ctr={ctr} />}
                     {ctr.Agent === null ? "" : <Agent ctr={ctr} />}
+                    {ctr.Recordings == null ? "" : <Recordings recordings={ctr.Recordings} />}
                     {Object.keys(ctr.Attributes).length == 0 ? "" : <Attributes ctr={ctr} />}
                 </Container>
                 <DialogActions>

@@ -3,7 +3,7 @@ import Header from 'aws-northstar/components/Header';
 
 const CTRViewerHeader = () => (
     <div>
-        <Header title='Contact Trace Record Viewer' />
+        <Header title='Amazon Connect - Contact Trace Record Viewer' />
     </div>
 )
 

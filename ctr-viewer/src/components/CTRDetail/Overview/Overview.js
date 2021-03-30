@@ -6,7 +6,7 @@ import Stack from 'aws-northstar/layouts/Stack';
 
 const Overview = ({ ctr }) => {
     return (
-        <Container headingVariant='h4' title='Attributes'>
+        <Container headingVariant='h4' title='Overview of the Contact'>
             <ColumnLayout>
                 <Column>
                     <Stack>
