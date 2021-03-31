@@ -41,7 +41,7 @@ const CTRDetail = ({ ctr }) => {
                     title={"Contact ID: " + ctr.ContactId }
                 >
                     <Overview ctr={ctr} />
-                    <PhoneNumber ctr={ctr} />
+                    {ctr.SystemEndpoint === null ? "" : <PhoneNumber ctr={ctr} />}
                     {ctr.Queue === null ? "" : <Queue ctr={ctr} />}
                     {ctr.Agent === null ? "" : <Agent ctr={ctr} />}
                     {ctr.Recordings == null ? "" : <Recordings recordings={ctr.Recordings} />}

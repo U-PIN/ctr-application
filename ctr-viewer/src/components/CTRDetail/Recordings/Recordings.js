@@ -46,6 +46,22 @@ const Recordings = ({ recordings }) => {
                 </Container>
             );
         }
+        else if (recording.MediaStreamType == 'CHAT') {
+            return (
+                <Container headingVariant='h4' title={"Recording #" + String(index + 1)}>
+                    <ColumnLayout>
+                        <Column>
+                            <Stack>
+                                <KeyValuePair label="Media Stream Type" value={recording.MediaStreamType}></KeyValuePair>
+                                <KeyValuePair label="Location" value={recording.Location}></KeyValuePair>
+                                <KeyValuePair label="Status" value={recording.Status}></KeyValuePair>
+                                <KeyValuePair label="Storage Type" value={recording.StorageType}></KeyValuePair>
+                            </Stack>
+                        </Column>  
+                    </ColumnLayout>
+                </Container>
+            )   
+        }
     });
 
     return (
